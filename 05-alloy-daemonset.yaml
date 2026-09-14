@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: DaemonSet
+
+metadata:
+  name: alloy
+  namespace: poc
+
+spec:
+
+  selector:
+    matchLabels:
+      app: alloy
+
+  template:
+
+    metadata:
+      labels:
+        app: alloy
+
+    spec:
+
+      serviceAccountName: alloy
+
+      containers:
+
+        - name: alloy
+
+          image: grafana/alloy:latest
+
+          args:
+
+            - run
+            - /etc/alloy/config.alloy
+            - --server.http.listen-addr=0.0.0.0:12345
+
+          env:
+
+            - name: GRAFANA_CLOUD_LOKI_USERNAME
+              valueFrom:
+
+                secretKeyRef:
+                  name: grafana-cloud-loki
+                  key: username
+
+            - name: GRAFANA_CLOUD_LOKI_TOKEN
+              valueFrom:
+
+                secretKeyRef:
+                  name: grafana-cloud-loki
+                  key: password
+
+          volumeMounts:
+
+            - name: config
+              mountPath: /etc/alloy
+
+          ports:
+
+            - name: http
+              containerPort: 12345
+
+      volumes:
+
+        - name: config
+
+          configMap:
+            name: alloy-config

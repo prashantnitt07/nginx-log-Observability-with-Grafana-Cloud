@@ -1,0 +1,101 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alloy-config
+  namespace: poc
+
+data:
+  config.alloy: |
+    logging {
+      level  = "info"
+      format = "logfmt"
+    }
+
+    discovery.kubernetes "pods" {
+      role = "pod"
+    }
+
+    discovery.relabel "nginx" {
+      targets = discovery.kubernetes.pods.targets
+
+      rule {
+        source_labels = ["__meta_kubernetes_namespace"]
+        regex         = "poc"
+        action        = "keep"
+      }
+
+      rule {
+        source_labels = ["__meta_kubernetes_pod_label_app"]
+        regex         = "nginx-poc"
+        action        = "keep"
+      }
+
+      rule {
+        source_labels = ["__meta_kubernetes_namespace"]
+        target_label  = "namespace"
+      }
+
+      rule {
+        source_labels = ["__meta_kubernetes_pod_name"]
+        target_label  = "pod"
+      }
+
+      rule {
+        source_labels = ["__meta_kubernetes_pod_container_name"]
+        target_label  = "container"
+      }
+
+      rule {
+        source_labels = ["__meta_kubernetes_pod_label_app"]
+        target_label  = "app"
+      }
+    }
+
+    loki.source.kubernetes "nginx" {
+      targets    = discovery.relabel.nginx.output
+      forward_to = [loki.process.nginx.receiver]
+    }
+
+    loki.process "nginx" {
+
+      stage.json {
+        expressions = {
+          time            = "time",
+          remote_addr     = "remote_addr",
+          method          = "method",
+          uri             = "uri",
+          status          = "status",
+          request_time    = "request_time",
+          body_bytes_sent = "body_bytes_sent",
+          user_agent      = "http_user_agent",
+        }
+      }
+
+      stage.labels {
+        values = {
+          method = "",
+          status = "",
+        }
+      }
+
+      stage.static_labels {
+        values = {
+          environment = "poc",
+          application = "nginx",
+        }
+      }
+
+      forward_to = [loki.write.grafana_cloud.receiver]
+    }
+
+    loki.write "grafana_cloud" {
+
+      endpoint {
+        url = "https://logs-prod-014.grafana.net/loki/api/v1/push"
+
+        basic_auth {
+          username = sys.env("GRAFANA_CLOUD_LOKI_USERNAME")
+          password = sys.env("GRAFANA_CLOUD_LOKI_TOKEN")
+        }
+      }
+    }

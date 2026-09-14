@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: poc
+
+data:
+
+  nginx.conf: |
+    worker_processes auto;
+
+    events {
+      worker_connections 1024;
+    }
+
+    http {
+
+      log_format json_combined escape=json
+      '{'
+        '"time":"$time_iso8601",'
+        '"remote_addr":"$remote_addr",'
+        '"request":"$request",'
+        '"method":"$request_method",'
+        '"uri":"$uri",'
+        '"status":$status,'
+        '"body_bytes_sent":$body_bytes_sent,'
+        '"request_time":$request_time,'
+        '"upstream_response_time":"$upstream_response_time",'
+        '"http_user_agent":"$http_user_agent",'
+        '"http_referer":"$http_referer"'
+      '}';
+
+      access_log /dev/stdout json_combined;
+      error_log /dev/stderr warn;
+
+      server {
+
+        listen 80;
+
+        server_name _;
+
+        location / {
+
+          default_type application/json;
+
+          return 200
+          '{"message":"NGINX Grafana Cloud POC","status":"success"}';
+        }
+
+        location /health {
+          default_type application/json;
+
+          return 200
+          '{"status":"healthy"}';
+        }
+
+        location /error {
+          return 500;
+        }
+
+        location /notfound {
+          return 404;
+        }
+      }
+    }
